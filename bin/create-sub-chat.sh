@@ -35,8 +35,8 @@ function create_subchat {
       ln -s "${orig_rag_data}" rag_data
    fi
 
-   if [ ! -e "llm_call_tool" ]; then
-      ln -s "${orig_llm_call_tool}" llm_call_tool
+   if [ ! -e "llm_call_tools" ]; then
+      ln -s "${orig_llm_call_tool}" llm_call_tools
    fi
    if [ ! -e "addons" ]; then
       ln -s "${orig_addons}" addons

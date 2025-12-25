@@ -1,0 +1,19 @@
+#GET source
+git clone https://github.com/ggerganov/llama.cpp
+
+#BUILD
+cd llama.cpp
+mkdir build
+cd build
+cmake ..
+make -j8 llama.completion llama.server llama.cli
+
+
+#DOWNLOAD
+wget "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q8_0.gguf" -O qwen2.5-0.5b-instruct-q8_0.gguf
+wget "https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF/resolve/main/qwen2.5-coder-1.5b-instruct-q8_0.gguf?download=true" -O qwen2.5-coder-1.5b-instruct-q8_0.gguf
+wget "https://huggingface.co/bartowski/stable-code-3b-GGUF/resolve/main/stable-code-3b-Q2_K.gguf"
+
+
+#TEST
+python3 piairelay.py "用純bash寫出費氏數列"

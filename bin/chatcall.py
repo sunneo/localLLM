@@ -198,10 +198,5 @@ class PiAiRelaySystem:
 
 if __name__ == "__main__":
     relay = PiAiRelaySystem()
-    while True:
-        try:
-            u = input("\n請輸入需求 (exit 離開): ")
-            if u.lower() in ['exit', 'quit']: break
-            relay.run_relay(u)
-        except KeyboardInterrupt: 
-            break
+    query = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else input("需求 > ")
+    if query: relay.run_relay(query)

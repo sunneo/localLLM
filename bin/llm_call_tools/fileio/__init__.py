@@ -25,18 +25,15 @@ def repair_and_parse_json(raw_text):
     """
     text = raw_text.strip()
     try:
-        # 嘗試直接解析
         return json.loads(text)
     except json.JSONDecodeError:
         try:
-            # 嘗試尋找最外層的 JSON 結構
             start = text.find('{')
             end = text.rfind('}')
             if start != -1:
                 if end != -1 and end > start:
                     return json.loads(text[start:end+1])
                 else:
-                    # 只有開頭，嘗試手動閉合
                     return json.loads(text[start:] + '"}')
         except:
             pass
@@ -86,51 +83,91 @@ def handle_code_analyzer(p: dict, sys_inst):
     return f"【代碼分析結果】\n{analysis}"
 
 
+def repair_and_parse_json(raw_text):
+    """
+    針對小模型生成的截斷 JSON 進行修復。
+    如果是長代碼任務，模型可能在 JSON 結束前就斷掉。
+    """
+    text = raw_text.strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        # 嘗試尋找並修補 JSON 結構
+        match = re.search(r'\{.*\}', text, re.S)
+        if match:
+            try: return json.loads(match.group(0))
+            except: pass
+        # 如果是截斷的字串內容，嘗試暴力閉合
+        if text.startswith('{') and '"code":' in text:
+            try: return json.loads(text + '"}')
+            except: pass
+    return None
+
 @register_ai_tool(
-    "write_code",
-    "當訊息提到**寫*程式*，都要用這個，這主要用來處理程式撰寫需求，提到寫什麼程式都要用write_code",
-    ["codegen","write","programming"]
+   "write_code",
+   "根據需求生成完整的程式碼檔案。參數：task_description (需求描述), filename (建議檔名)",
+   tags=["code", "writer"]
 )
-def handle_write_code(p: dict, sys_inst):
-    """根據需求生成代碼並儲存至檔案"""
-    desc = p.get('task_description') or "撰寫程式碼"
-    # 整合背景 Context
-    context_prefix = f"背景資訊:\n{sys_inst.context}\n\n" if sys_inst.context else ""
-    prompt = f"{context_prefix}任務需求: {desc}"
-
-    # 強制 Schema
-    schema = {
-        "type": "object",
-        "properties": {
-            "code": {"type": "string"},
-            "filename": {"type": "string"}
-        },
-        "required": ["code"]
-    }
-
-    sys_msg = "你是一個專業工程師。必須嚴格輸出 JSON。'code' 欄位放置程式碼，'filename' 放置建議檔名。"
-    raw_res = sys_inst.call_llm("coder", prompt, system_prompt=sys_msg, schema=schema)
-
-    # 嘗試解析
-    data = repair_and_parse_json(raw_res)
+def handle_write_code(p, sys_inst):
+    task = p.get("task_description", sys_inst.context)
+    fname = p.get("filename", "generated_code.txt")
     
-    if data and "code" in data:
-        code = data["code"]
-        fname = data.get("filename") or "generated_code.txt"
-        with open(fname, "w", encoding="utf-8") as f:
+    # 策略：高效能環境下移除 Schema 限制
+    sys_msg = (
+        "你是一個專業工程師。請直接輸出完整的程式碼。"
+        "請將程式碼包裹在 Markdown 程式碼塊中。"
+        "不要解釋、不要引言、不要結語，只輸出程式碼內容。"
+    )
+    
+    prompt = f"請實作以下功能並提供完整、可執行的代碼：\n{task}"
+    
+    print(f"[*] 正在生成代碼 {fname} (高效能模式，上限 4096 tokens)...")
+    
+    # 呼叫 LLM
+    raw_res = sys_inst.call_llm("coder", prompt, system_prompt=sys_msg, n_tokens=4096, temp=0.2)
+    
+    code = ""
+    
+    # --- 關鍵修正：使用字串拼接避免渲染器中斷 ---
+    # 這裡將 ``` 分開寫成 "`" * 3，防止 Canvas 的 Markdown 渲染器誤判結束
+    backticks = "`" * 3
+    pattern = backticks + r'(?:\w+)?\n?(.*?)' + backticks
+    
+    # 邏輯 A：尋找 Markdown 區塊
+    code_blocks = re.findall(pattern, raw_res, re.DOTALL)
+    if code_blocks:
+        code = max(code_blocks, key=len).strip()
+    
+    # 邏輯 B：JSON 備援
+    if not code:
+        data = repair_and_parse_json(raw_res)
+        if data and isinstance(data, dict) and "code" in data:
+            code = data["code"]
+            
+    # 邏輯 C：純文字清理保底
+    if not code:
+        code = re.sub(r'^{\s*"code":\s*"|",\s*"filename":.*}$', '', raw_res, flags=re.DOTALL).strip()
+        code = code.strip('"` \n')
+
+    if len(code) > 10:
+        # 自動判定副檔名
+        final_fname = fname
+        if final_fname == "generated_code.txt":
+            low_c = code.lower()
+            if "import " in low_c or "def " in low_c: final_fname = "script.py"
+            elif "#include" in low_c: final_fname = "program.c"
+            elif "fn main" in low_c: final_fname = "main.rs"
+
+        with open(final_fname, "w", encoding="utf-8") as f:
             f.write(code)
-        return f"【代碼生成成功】已寫入至 {fname}。\n預覽：\n{code[:60]}..."
+            
+        preview = code[:100].replace('\n', ' ')
+        return f"【代碼生成成功】已寫入至 {final_fname} (共 {len(code)} 字元)。\n預覽：{preview}..."
     else:
-        # 保底方案：如果解析失敗但有足夠長度的文字，嘗試提取代碼
-        if len(raw_res) > 30:
-            # 嘗試過濾掉 JSON 殘骸，提取引號內的內容或直接存檔
-            clean_code = re.sub(r'^{\s*"code":\s*"|",\s*"filename":.*}$', '', raw_res, flags=re.DOTALL)
-            fallback_name = "fallback_code.txt"
-            with open(fallback_name, "w", encoding="utf-8") as f:
-                f.write(clean_code)
-            return f"【警告：格式異常】JSON 解析失敗，已啟動保底模式存至 {fallback_name}。原始回傳預覽:\n{raw_res[:80]}"
-        
-        return f"【生成失敗】模型回傳內容過短或無效。原始內容:\n{raw_res}"
+        # 失敗紀錄
+        with open("error_raw_output.txt", "w", encoding="utf-8") as f:
+            f.write(raw_res)
+        return f"[-] 錯誤：代碼提取失敗。原始內容已存至 error_raw_output.txt。"
 
 @register_ai_tool(
    "chatter",

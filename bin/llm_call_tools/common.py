@@ -35,6 +35,9 @@ def get_weighted_tool_prompts(query_tags: List[str] = None) -> str:
 def get_tool_names() -> List[str]:
     return list(TOOLS_LIST.keys())
 
+def get_tool_prompts():
+    return TOOLS_PROMPT
+
 def execute_tool(name: str, params: Dict[str, Any], context_obj: Any):
     if name in TOOLS_LIST:
         return TOOLS_LIST[name](params, context_obj)

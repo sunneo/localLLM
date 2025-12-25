@@ -3,7 +3,8 @@ import os
 # ================= 配置區 (RPi 3B 記憶體最小化) =================
 LLAMA_BIN = "./llama.bin/llama-completion" 
 MODELS = {
-    "architect": "./models/qwen2.5-0.5b-instruct-q8_0.gguf",
+#    "architect": "./models/qwen2.5-0.5b-instruct-q8_0.gguf",
+    "architect": "./models/qwen2.5-3b-instruct-q8_0.gguf",
     "chatter": "./models/qwen2.5-0.5b-instruct-q8_0.gguf",
     "coder": "./models/qwen2.5-coder-1.5b-instruct-q8_0.gguf" 
 }

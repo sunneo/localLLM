@@ -16,4 +16,4 @@ wget "https://huggingface.co/bartowski/stable-code-3b-GGUF/resolve/main/stable-c
 
 
 #TEST
-python3 chatcall.py "用純bash寫出費氏數列"
+python3 piairelay.py "用純bash寫出費氏數列"

@@ -44,7 +44,11 @@ def repair_and_parse_json(raw_text):
 
 # --- 工具定義區 ---
 
-@register_ai_tool("text_reader","單純讀取檔案作為系統Context，如果有工具的目標是讀取文字，但分析的內容還沒載入，應優先執行text_reader")
+@register_ai_tool(
+   "text_reader",
+   "單純讀取檔案作為系統Context，如果有工具的目標是讀取文字，但分析的內容還沒載入，應優先執行text_reader",
+   ['reader','text']
+)
 def handle_text_reader(p: dict, sys_inst):
     """讀取檔案內容並存入系統 Context"""
     print(f'dump={json.dumps(p)}')
@@ -63,7 +67,11 @@ def handle_text_reader(p: dict, sys_inst):
             return f"【讀取失敗】讀取過程發生錯誤: {str(e)}"
     return f"【讀取失敗】找不到檔案: {fname}"
 
-@register_ai_tool("code_analyzer","分析程式邏輯，code_analyzer的輸入只能是程式內容，如果是檔案請優先跑過text_reader")
+@register_ai_tool(
+    "code_analyzer",
+    "分析程式邏輯，code_analyzer的輸入只能是程式內容，如果是檔案請優先跑過text_reader",
+    ["analyzer","source","code"]
+)
 def handle_code_analyzer(p: dict, sys_inst):
     """分析 Context 中的代碼邏輯"""
     print(f'dump={json.dumps(p)}')
@@ -78,7 +86,11 @@ def handle_code_analyzer(p: dict, sys_inst):
     return f"【代碼分析結果】\n{analysis}"
 
 
-@register_ai_tool("write_code","當訊息提到**寫*程式*，都要用這個，這主要用來處理程式撰寫需求，提到寫什麼程式都要用write_code")
+@register_ai_tool(
+    "write_code",
+    "當訊息提到**寫*程式*，都要用這個，這主要用來處理程式撰寫需求，提到寫什麼程式都要用write_code",
+    ["codegen","write","programming"]
+)
 def handle_write_code(p: dict, sys_inst):
     """根據需求生成代碼並儲存至檔案"""
     desc = p.get('task_description') or "撰寫程式碼"
@@ -120,7 +132,11 @@ def handle_write_code(p: dict, sys_inst):
         
         return f"【生成失敗】模型回傳內容過短或無效。原始內容:\n{raw_res}"
 
-@register_ai_tool("chatter","這是最後的選項，用來回應聊天")
+@register_ai_tool(
+   "chatter",
+   "這是最後的選項，用來回應聊天",
+   ["chat"]
+)
 def handle_chatter(p: dict, sys_inst):
     """聊天"""
     #print(f'dump={json.dumps(p)}')

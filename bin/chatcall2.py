@@ -127,8 +127,50 @@ class PiAiRelaySystem:
         #print(f'清理後原始文字:\n{result}')
 
         return result
-
+    #call llm by llama_cpp_python
     def call_llm(self, model_key, prompt, system_prompt=None, n_tokens=8192, temp=0.1, schema=None):
+        try:
+            import llama_cpp
+            LLAMA_MODEL_PATHS = MODELS
+            if not hasattr(self, '_llama_instances'):
+                self._llama_instances = {}
+            if model_key not in LLAMA_MODEL_PATHS:
+                raise ValueError(f"Unknown model_key: {model_key}")
+            if model_key not in self._llama_instances:
+                self._llama_instances[model_key] = llama_cpp.Llama(
+                    model_path=LLAMA_MODEL_PATHS[model_key],
+                    n_ctx=32768,
+                    n_threads=8,
+                    n_gpu_layers=0,
+                    verbose=False
+                )
+            llama = self._llama_instances[model_key]
+            # Qwen2.5 chat template
+            if system_prompt:
+                full_prompt = (
+                    "<|im_start|>system\n" + system_prompt.strip() + "<|im_end|>\n"
+                    "<|im_start|>user\n" + prompt.strip() + "<|im_end|>\n"
+                    "<|im_start|>assistant\n"
+                )
+            else:
+                full_prompt = (
+                    "<|im_start|>user\n" + prompt.strip() + "<|im_end|>\n"
+                    "<|im_start|>assistant\n"
+                )
+            output = llama(
+                full_prompt,
+                max_tokens=n_tokens,
+                temperature=temp,
+                stop=["<|im_end|>", "<|im_start|>"],
+                stream=False
+            )
+            result = output["choices"][0]["text"]
+            ret= self.strip_noise(result)
+            print(f'回覆={ret}',flush=True)
+            return ret
+        except Exception as e:
+            return f"Error: {str(e)}"
+    def call_llm2(self, model_key, prompt, system_prompt=None, n_tokens=8192, temp=0.1, schema=None):
         model_path = MODELS.get(model_key)
         if not model_path or not os.path.exists(model_path):
             return f"Error: 找不到模型檔案 {model_path}"
@@ -192,7 +234,7 @@ class PiAiRelaySystem:
             plan_data = self.repair_json(raw_res)
             is_tool_call = False
 
-            if plan_data and isinstance(plan_data, dict) and ("tasks" in plan_data or "actions" in plan_data) or "function_call" in plan_data:
+            if plan_data and isinstance(plan_data, dict) and ("tasks" in plan_data or "actions" in plan_data or "function_call" in plan_data):
                 is_tool_call = True
             elif plan_data and isinstance(plan_data, dict) and set(plan_data.keys()) == {"content"}:
                 # 僅有 content 欄位，視為對話型回應，直接進入對話模式
